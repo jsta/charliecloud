@@ -290,7 +290,7 @@ ONBUILD foo
 EOF
     echo "$output"
     [[ $status -eq 0 ]]
-    [[ $(echo "$output" | grep -Ec 'not yet supported.+instruction') -eq 5 ]]
+    [[ $(echo "$output" | grep -Ec 'not yet supported.+instruction') -eq 4 ]]
     [[ $output = *'warning: not yet supported, ignored: issue #782: ADD instruction'* ]]
     [[ $output = *'warning: not yet supported, ignored: issue #780: CMD instruction'* ]]
     [[ $output = *'warning: not yet supported, ignored: issue #780: ENTRYPOINT instruction'* ]]
@@ -494,8 +494,10 @@ EOF
 ('chsl_6b', 'value6b')
 EOF
 )
-    run build_ --no-cache -t tmpimg -f - . <<'EOF'
+    img=${CH_IMAGE_STORAGE}/img/tmpimg
+    run build_ --no-cache -t tmpimg --build-arg JSON_FILE=${img}/ch/metadata.json -f - . <<'EOF'
 FROM almalinux_8ch
+ARG JSON_FILE=$JSON_FILE
 
 # FIXME: make this more comprehensive, e.g. space-separate vs.
 # equals-separated for everything.
@@ -545,7 +547,10 @@ LABEL chsl_6b "value\
 #LABEL chsl_4=value4 chsl_5="value5 foo" chsl_6=value6\ foo chsl_7=\"value7\"
 
 # Print output with Python to avoid ambiguity.
-RUN python3 -c 'import os; [print((k,v)) for (k,v) in sorted(os.environ.items()) if "chsl_" in k]'
+RUN export JSON_FILE=$JSON_FILE
+RUN echo $(less ${JSON_FILE})
+RUN echo $(less ${img}/ch/metadata.json)
+RUN python3 -c 'import os; import json; labels = json.loads(open(os.environ["JSON_FILE"], "r").read())["labels"]; [print((k,v)) for (k,v) in sorted(labels.items()) if "chsl_" in k]'
 EOF
   echo "$output"
   [[ $status -eq 0 ]]
