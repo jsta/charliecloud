@@ -37,7 +37,7 @@ def main(cli):
 
 class Image_Pusher:
 
-   # Note; We use functions to create the blank config and manifest to to
+   # Note; We use functions to create the blank config and manifest to
    # avoid copy/deepcopy complexity from just copying a default dict.
 
    __slots__ = ("config",    # sequence of bytes
