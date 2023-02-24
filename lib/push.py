@@ -54,16 +54,18 @@ class Image_Pusher:
       self.manifest = None
 
    @classmethod
-   def config_new(class_):
+   def config_new(class_, date):
       "Return an empty config, ready to be filled in."
       # FIXME: URL of relevant docs?
       # FIXME: tidy blank/empty fields?
+      print(date)
       return { "architecture": ch.arch_host_get(),
                "charliecloud_version": version.VERSION,
                "comment": "pushed with Charliecloud",
                "config": {},
                "container_config": {},
-               "created": ch.now_utc_iso8601(),
+               "created": date,
+# "created": ch.now_utc_iso8601(),
                "history": [],
                "os": "linux",
                "rootfs": { "diff_ids": [], "type": "layers" },
@@ -97,7 +99,9 @@ class Image_Pusher:
          a way to know if these have changed until they are already build."""
       tars_uc = self.image.tarballs_write(ch.storage.upload_cache)
       tars_c = list()
-      config = self.config_new()
+      self.image.metadata_load()
+      date = self.image.metadata["history"][-1]["created"]
+      config = self.config_new(date)
       manifest = self.manifest_new()
       # Prepare layers.
       for (i, tar_uc) in enumerate(tars_uc, start=1):
@@ -116,7 +120,6 @@ class Image_Pusher:
                                      "digest": "sha256:" + hash_c })
       # Prepare metadata.
       ch.INFO("preparing metadata")
-      self.image.metadata_load()
       # Environment. Note that this is *not* a dictionary for some reason but
       # a list of name/value pairs separated by equals [1], with no quoting.
       #
