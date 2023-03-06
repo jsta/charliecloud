@@ -54,18 +54,16 @@ class Image_Pusher:
       self.manifest = None
 
    @classmethod
-   def config_new(class_, date):
+   def config_new(class_):
       "Return an empty config, ready to be filled in."
       # FIXME: URL of relevant docs?
       # FIXME: tidy blank/empty fields?
-      print(date)
       return { "architecture": ch.arch_host_get(),
                "charliecloud_version": version.VERSION,
                "comment": "pushed with Charliecloud",
                "config": {},
                "container_config": {},
-               "created": date,
-# "created": ch.now_utc_iso8601(),
+               "created": ch.now_utc_iso8601(),
                "history": [],
                "os": "linux",
                "rootfs": { "diff_ids": [], "type": "layers" },
@@ -89,19 +87,25 @@ class Image_Pusher:
          ch.VERBOSE("deleting tarball: %s" % tar_c)
          tar_c.unlink_()
 
-   def prepare(self):
-      """Prepare self.image for pushing to self.dst_ref. Return tuple: (list
-         of gzipped layer tarball paths, config as a sequence of bytes,
-         manifest as a sequence of bytes).
+   def get_prev_prepared(self):
+      """Check self.image if an existing config, manifest, and tar exist.
+         Return list: [config, manifest, tar] if these files exist or new ones
+         if not."""
+      try:
+         config = self.image.config
+         print("Config exists!!!!!")
+         return [config, manifest]
+      except:
+         print("Config does not exist")
+         return None
 
-         There is not currently any support for re-using any previously
-         prepared files already in the upload cache, because we don't yet have
-         a way to know if these have changed until they are already build."""
+   def prepare_new(self):
+      """Prepare and return a new config, manifest, and tarball since they do
+         not already exist. """
       tars_uc = self.image.tarballs_write(ch.storage.upload_cache)
       tars_c = list()
+      config = self.config_new()
       self.image.metadata_load()
-      date = self.image.metadata["history"][-1]["created"]
-      config = self.config_new(date)
       manifest = self.manifest_new()
       # Prepare layers.
       for (i, tar_uc) in enumerate(tars_uc, start=1):
@@ -152,6 +156,23 @@ class Image_Pusher:
          if (i != non_empty_winner):
             hist[i]["empty_layer"] = True
       config["history"] = hist
+      return {"config": config, "manifest": manifest, "tars_c": tars_c}
+
+   def prepare(self):
+      """Prepare self.image for pushing to self.dst_ref. Return tuple: (list
+         of gzipped layer tarball paths, config as a sequence of bytes,
+         manifest as a sequence of bytes).
+
+         There is not currently any support for re-using any previously
+         prepared files already in the upload cache, because we don't yet have
+         a way to know if these have changed until they are already build."""
+      ### CHECK: use prev_prepeared to check if git-head.conf, etc. exists
+      prev_prepared = self.get_prev_prepared()
+      if prev_prepared is None:
+         prev_prepared = self.prepare_new()
+      config = prev_prepared["config"]
+      manifest = prev_prepared["manifest"]
+      tars_c = prev_prepared["tars_c"]
       # Pack it up to go.
       config_bytes = json.dumps(config, indent=2).encode("UTF-8")
       config_hash = ch.bytes_hash(config_bytes)
