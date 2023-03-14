@@ -1,7 +1,10 @@
 import json
 import os.path
+import tarfile
+from pathlib import Path
 
 import charliecloud as ch
+import build_cache as bu
 import image as im
 import registry as rg
 import version
@@ -28,7 +31,7 @@ def main(cli):
       ch.INFO("destination:     %s" % dst_ref)
    else:
       dst_ref = im.Reference(cli.source_ref)
-   up = Image_Pusher(image, dst_ref)
+   up = Image_Pusher(dst_ref, image)
    up.push()
    ch.done_notify()
 
@@ -46,7 +49,7 @@ class Image_Pusher:
                 "layers",    # list of (digest, .tar.gz path), lowest first
                 "manifest")  # sequence of bytes
 
-   def __init__(self, image, dst_ref):
+   def __init__(self, dst_ref, image):
       self.config = None
       self.dst_ref = dst_ref
       self.image = image
@@ -91,21 +94,32 @@ class Image_Pusher:
       """Check self.image if an existing config, manifest, and tar exist.
          Return list: [config, manifest, tar] if these files exist or new ones
          if not."""
+      (sid, git_hash) = bu.cache.find_image(self.image)
+      ul_ref = str(ch.storage.upload_cache)
       try:
-         config = self.image.config
-         print("Config exists!!!!!")
-         return [config, manifest]
+         conf_path = ul_ref + "/" + git_hash + ".config.json"
+         config = json.load(open(conf_path))
+         man_path = ul_ref + "/" + git_hash + ".manifest.json"
+         manifest = json.load(open(man_path))
+         # Potential issue: "/" are stored as "%" in file names in Charliecloud's
+         # upload cache. Ex: "$USER/test_push.tar.gz" is actually stored in
+         # /var/tmp/$USER.ch/ulcache/$USER%test_push.tar.gz". Hence the
+         # workaround below.
+         tars_path = ul_ref + "/" + str(self.image).replace("/", "%") + ".tar.gz"
+         tars_c = manifest["layers"][0]["digest"].replace("sha256:", "")
+         tars_c = tarfile.open(tars_path, "r")
+         print("Previous config, manifest, and tar all exist")
+         return {"config": config, "manifest": manifest, "tars_c": tars_c}
       except:
-         print("Config does not exist")
+         print("Previous config, manifest, or tar does not exist")
          return None
 
    def prepare_new(self):
       """Prepare and return a new config, manifest, and tarball since they do
-         not already exist. """
+         not already exist."""
       tars_uc = self.image.tarballs_write(ch.storage.upload_cache)
       tars_c = list()
       config = self.config_new()
-      self.image.metadata_load()
       manifest = self.manifest_new()
       # Prepare layers.
       for (i, tar_uc) in enumerate(tars_uc, start=1):
@@ -124,6 +138,7 @@ class Image_Pusher:
                                      "digest": "sha256:" + hash_c })
       # Prepare metadata.
       ch.INFO("preparing metadata")
+      self.image.metadata_load()
       # Environment. Note that this is *not* a dictionary for some reason but
       # a list of name/value pairs separated by equals [1], with no quoting.
       #
@@ -156,6 +171,15 @@ class Image_Pusher:
          if (i != non_empty_winner):
             hist[i]["empty_layer"] = True
       config["history"] = hist
+
+      (sid, git_hash) = bu.cache.find_image(self.image)
+      ul_ref = str(ch.storage.upload_cache)
+      conf_path = ul_ref + "/" + git_hash + "." + "config.json"
+      man_path = ul_ref + "/" + git_hash + "." + "manifest.json"
+      with open(Path(conf_path), "w") as conf:
+         json.dump(config, conf)
+      with open(Path(man_path), "w") as man:
+         json.dump(manifest, man)
       return {"config": config, "manifest": manifest, "tars_c": tars_c}
 
    def prepare(self):
@@ -166,7 +190,8 @@ class Image_Pusher:
          There is not currently any support for re-using any previously
          prepared files already in the upload cache, because we don't yet have
          a way to know if these have changed until they are already build."""
-      ### CHECK: use prev_prepeared to check if git-head.conf, etc. exists
+      # TODO: Check if build cache is even enabled first before below
+      # CHECK: use prev_prepeared to check if git-head.conf, etc. exists
       prev_prepared = self.get_prev_prepared()
       if prev_prepared is None:
          prev_prepared = self.prepare_new()
