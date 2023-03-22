@@ -85,10 +85,10 @@ class Image_Pusher:
 
    def cleanup(self):
       ch.INFO("cleaning up")
-      # Delete the tarballs since we can't yet cache them.
-      for (_, tar_c) in self.layers:
-         ch.VERBOSE("deleting tarball: %s" % tar_c)
-         tar_c.unlink_()
+     # # Delete the tarballs since we can't yet cache them.
+     # for (_, tar_c) in self.layers:
+     #    ch.VERBOSE("deleting tarball: %s" % tar_c)
+     #    tar_c.unlink_()
 
    def get_prev_prepared(self):
       """Check self.image if an existing config, manifest, and tar exist.
@@ -99,17 +99,19 @@ class Image_Pusher:
       try:
          conf_path = ul_ref + "/" + git_hash + ".config.json"
          config = json.load(open(conf_path))
+
          man_path = ul_ref + "/" + git_hash + ".manifest.json"
          manifest = json.load(open(man_path))
-         # Potential issue: "/" are stored as "%" in file names in Charliecloud's
-         # upload cache. Ex: "$USER/test_push.tar.gz" is actually stored in
-         # /var/tmp/$USER.ch/ulcache/$USER%test_push.tar.gz". Hence the
-         # workaround below.
-         tars_path = ul_ref + "/" + str(self.image).replace("/", "%") + ".tar.gz"
-         tars_c = manifest["layers"][0]["digest"].replace("sha256:", "")
-         tars_c = tarfile.open(tars_path, "r")
+
+         tar_c = str(self.image.ref) + ".tar.gz"
+         path_c = ch.storage.upload_cache // tar_c
+         hash_c = path_c.file_hash()
+
+         tars_c = list()
+         tars_c.append((hash_c, path_c))
+         self.layers = tars_c
          print("Previous config, manifest, and tar all exist")
-         return {"config": config, "manifest": manifest, "tars_c": tars_c}
+         return {"config": config, "manifest": manifest}
       except:
          print("Previous config, manifest, or tar does not exist")
          return None
@@ -132,10 +134,18 @@ class Image_Pusher:
          tar_c = path_c.name
          hash_c = path_c.file_hash()
          size_c = path_c.file_size()
-         tars_c.append((hash_c, path_c))
          manifest["layers"].append({ "mediaType": rg.TYPE_LAYER,
                                      "size": size_c,
                                      "digest": "sha256:" + hash_c })
+        # # RENAME TAR WITH HASH, using Path rename function
+        # hash_str = str(hash_uc) + ".tar.gz"
+        # print("Original path:", path_c)
+        # target = Path(ch.storage.upload_cache // hash_str)
+        # print("target:", target)
+        # path_c.rename(hash_str)
+        # print(path_c)
+        # print("LOOK ABOVE")
+         tars_c.append((hash_c, path_c))
       # Prepare metadata.
       ch.INFO("preparing metadata")
       self.image.metadata_load()
@@ -174,13 +184,14 @@ class Image_Pusher:
 
       (sid, git_hash) = bu.cache.find_image(self.image)
       ul_ref = str(ch.storage.upload_cache)
-      conf_path = ul_ref + "/" + git_hash + "." + "config.json"
-      man_path = ul_ref + "/" + git_hash + "." + "manifest.json"
+      conf_path = ul_ref + "/" + git_hash + ".config.json"
+      man_path = ul_ref + "/" + git_hash + ".manifest.json"
       with open(Path(conf_path), "w") as conf:
          json.dump(config, conf)
       with open(Path(man_path), "w") as man:
          json.dump(manifest, man)
-      return {"config": config, "manifest": manifest, "tars_c": tars_c}
+      self.layers = tars_c
+      return {"config": config, "manifest": manifest}
 
    def prepare(self):
       """Prepare self.image for pushing to self.dst_ref. Return tuple: (list
@@ -197,7 +208,6 @@ class Image_Pusher:
          prev_prepared = self.prepare_new()
       config = prev_prepared["config"]
       manifest = prev_prepared["manifest"]
-      tars_c = prev_prepared["tars_c"]
       # Pack it up to go.
       config_bytes = json.dumps(config, indent=2).encode("UTF-8")
       config_hash = ch.bytes_hash(config_bytes)
@@ -207,7 +217,6 @@ class Image_Pusher:
       manifest_bytes = json.dumps(manifest, indent=2).encode("UTF-8")
       ch.DEBUG("manifest:\n%s" % manifest_bytes.decode("UTF-8"))
       # Store for the next steps.
-      self.layers = tars_c
       self.config = config_bytes
       self.manifest = manifest_bytes
 
