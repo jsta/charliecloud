@@ -1,6 +1,5 @@
 import json
 import os.path
-import tarfile
 from pathlib import Path
 
 import charliecloud as ch
@@ -31,7 +30,7 @@ def main(cli):
       ch.INFO("destination:     %s" % dst_ref)
    else:
       dst_ref = im.Reference(cli.source_ref)
-   up = Image_Pusher(dst_ref, image)
+   up = Image_Pusher(image, dst_ref)
    up.push()
    ch.done_notify()
 
@@ -49,7 +48,7 @@ class Image_Pusher:
                 "layers",    # list of (digest, .tar.gz path), lowest first
                 "manifest")  # sequence of bytes
 
-   def __init__(self, dst_ref, image):
+   def __init__(self, image, dst_ref):
       self.config = None
       self.dst_ref = dst_ref
       self.image = image
@@ -92,29 +91,40 @@ class Image_Pusher:
 
    def get_prev_prepared(self):
       """Check self.image if an existing config, manifest, and tar exist.
-         Return list: [config, manifest, tar] if these files exist or new ones
+         Return list: [config, manifest, tar] if these files exist or None
          if not."""
       (sid, git_hash) = bu.cache.find_image(self.image)
-      ul_ref = str(ch.storage.upload_cache)
+
+      conf_suffix = git_hash + ".config.json"
+      conf_path = ch.storage.upload_cache // conf_suffix
       try:
-         conf_path = ul_ref + "/" + git_hash + ".config.json"
-         config = json.load(open(conf_path))
+         json.load(open(conf_path))
+      except:
+         print("Previous config does not exist")
+         return None
 
-         man_path = ul_ref + "/" + git_hash + ".manifest.json"
-         manifest = json.load(open(man_path))
+      man_suffix = git_hash + ".manifest.json"
+      man_path = ch.storage.upload_cache // man_suffix
+      try:
+         json.load(open(man_path))
+      except:
+         print("Previous manifest does not exist")
+         return None
 
-         tar_c = str(self.image.ref) + ".tar.gz"
-         path_c = ch.storage.upload_cache // tar_c
+      tar_c = str(self.image.ref) + ".tar.gz"
+      path_c = ch.storage.upload_cache // tar_c
+      try:
          hash_c = path_c.file_hash()
-
          tars_c = list()
          tars_c.append((hash_c, path_c))
          self.layers = tars_c
-         print("Previous config, manifest, and tar all exist")
-         return {"config": config, "manifest": manifest}
       except:
-         print("Previous config, manifest, or tar does not exist")
+         print("Previous tar does not exist")
          return None
+
+      config = json.load(open(conf_path))
+      manifest = json.load(open(man_path))
+      return {"config": config, "manifest": manifest}
 
    def prepare_new(self):
       """Prepare and return a new config, manifest, and tarball since they do
