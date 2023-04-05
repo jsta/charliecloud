@@ -117,14 +117,12 @@ class Image_Pusher:
       if (conf_path.exists()):
          config = conf_path.json_from_file("config")
       else:
-         print("Previous config does not exist")
          return
       man_suffix = git_hash + ".manifest.json"
       man_path = ch.storage.upload_cache // man_suffix
       if (man_path.exists()):
          manifest = man_path.json_from_file("manifest")
       else:
-         print("Previous manifest does not exist")
          return
       tar_c = str(self.image.ref) + ".tar.gz"
       path_c = ch.storage.upload_cache // tar_c
@@ -132,7 +130,6 @@ class Image_Pusher:
          hash_c = path_c.file_hash()
          tars_c = [(hash_c, path_c)]
       else:
-         print("Previous tar does not exist")
          return
       return (config, manifest, tars_c)
 
