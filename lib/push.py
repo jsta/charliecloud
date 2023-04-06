@@ -1,5 +1,6 @@
 import json
 import os.path
+from os import rename
 from pathlib import Path
 
 import charliecloud as ch
@@ -121,7 +122,7 @@ class Image_Pusher:
       if (not man_path.exists()):
          return
       manifest = man_path.json_from_file("manifest")
-      tar_c = str(self.image.ref) + ".tar.gz"
+      tar_c = git_hash + ".tar.gz"
       path_c = ch.storage.upload_cache // tar_c
       if (not path_c.exists()):
          return
@@ -135,6 +136,7 @@ class Image_Pusher:
       tars_c = list()
       config = self.config_new()
       manifest = self.manifest_new()
+      (sid, git_hash) = bu.cache.find_image(self.image)
       # Prepare layers.
       for (i, tar_uc) in enumerate(tars_uc, start=1):
          ch.INFO("layer %d/%d: preparing" % (i, len(tars_uc)))
@@ -142,8 +144,16 @@ class Image_Pusher:
          hash_uc = path_uc.file_hash()
          config["rootfs"]["diff_ids"].append("sha256:" + hash_uc)
          size_uc = path_uc.file_size()
-         path_c = path_uc.file_gzip(["-9", "--no-name"])
-         tar_c = path_c.name
+         # Temporary gzipped tar created to avoid edge case. If an image is
+         # pushed with the build cache disabled, then rebuilt with the build
+         # cache enabled, the original tar will still be present.
+         temp_path_c = path_uc.file_gzip(["-9", "--no-name"])
+         if (str(bu.cache) != "disabled"):
+            tar_suffix = git_hash + ".tar.gz"
+         else:
+            tar_suffix = str(self.image) + ".tar.gz"
+         temp_path_c.rename_(ch.storage.upload_cache // tar_suffix)
+         path_c = ch.storage.upload_cache // tar_suffix
          hash_c = path_c.file_hash()
          size_c = path_c.file_size()
          manifest["layers"].append({ "mediaType": rg.TYPE_LAYER,
@@ -185,13 +195,17 @@ class Image_Pusher:
          if (i != non_empty_winner):
             hist[i]["empty_layer"] = True
       config["history"] = hist
-      (sid, git_hash) = bu.cache.find_image(self.image)
-      ul_ref = str(ch.storage.upload_cache)
-      conf_path = ul_ref + "/" + git_hash + ".config.json"
-      man_path = ul_ref + "/" + git_hash + ".manifest.json"
-      with open(Path(conf_path), "w") as conf:
+      if (str(bu.cache) != "disabled"):
+         conf_suffix = git_hash + ".config.json"
+         man_suffix = git_hash + ".manifest.json"
+      else:
+         conf_suffix = str(self.image) + ".config.json"
+         man_suffix = str(self.image) + ".manifest.json"
+      conf_path = ch.storage.upload_cache // conf_suffix
+      man_path = ch.storage.upload_cache // man_suffix
+      with open(conf_path, "w") as conf:
          json.dump(config, conf)
-      with open(Path(man_path), "w") as man:
+      with open(man_path, "w") as man:
          json.dump(manifest, man)
       self.prepare_upload(config, manifest, tars_c)
 
@@ -201,7 +215,10 @@ class Image_Pusher:
          not existing, prepare them. Then store the config as a sequence of
          bytes, manifest as a sequence of bytes, and layers as a list of
          gzipped layer tarball paths."""
-      self.prepare_existing()
+      # If build cache is disabled, we can't know if the image has changed
+      # since the last push.
+      if (str(bu.cache) != "disabled"):
+         self.prepare_existing()
       # If any previously prepared files are missing, replace them all.
       if (   self.config is None or self.manifest is None
           or self.layers is None):
