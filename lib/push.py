@@ -148,7 +148,7 @@ class Image_Pusher:
          # pushed with the build cache disabled, then rebuilt with the build
          # cache enabled, the original tar will still be present.
          temp_path_c = path_uc.file_gzip(["-9", "--no-name"])
-         if (str(bu.cache) != "disabled"):
+         if (not isinstance(bu.cache, bu.Disabled_Cache)):
             tar_suffix = git_hash + ".tar.gz"
          else:
             tar_suffix = str(self.image) + ".tar.gz"
@@ -195,7 +195,7 @@ class Image_Pusher:
          if (i != non_empty_winner):
             hist[i]["empty_layer"] = True
       config["history"] = hist
-      if (str(bu.cache) != "disabled"):
+      if (not isinstance(bu.cache, bu.Disabled_Cache)):
          conf_suffix = git_hash + ".config.json"
          man_suffix = git_hash + ".manifest.json"
       else:
@@ -217,7 +217,7 @@ class Image_Pusher:
          gzipped layer tarball paths."""
       # If build cache is disabled, we can't know if the image has changed
       # since the last push.
-      if (str(bu.cache) != "disabled"):
+      if (not isinstance(bu.cache, bu.Disabled_Cache)):
          self.prepare_existing()
       # If any previously prepared files are missing, replace them all.
       if (   self.config is None or self.manifest is None
