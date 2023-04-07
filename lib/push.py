@@ -1,6 +1,5 @@
 import json
 import os.path
-from os import rename
 from pathlib import Path
 
 import charliecloud as ch
@@ -83,12 +82,20 @@ class Image_Pusher:
                "layers": [],
                "weirdal": "yankovic" }
 
-#   def cleanup(self):
-#      ch.INFO("cleaning up")
-#      # Delete the tarballs since we can't yet cache them.
-#      for (_, tar_c) in self.layers:
-#         ch.VERBOSE("deleting tarball: %s" % tar_c)
-#         tar_c.unlink_()
+   def cleanup(self):
+      ch.INFO("cleaning up")
+      # Delete the config, manifest, and tarballs if the cache is disabled.
+      conf_suffix = str(self.image) + ".config.json"
+      conf_path = ch.storage.upload_cache // conf_suffix
+      ch.VERBOSE("deleting config: %s" % conf_path)
+      conf_path.unlink()
+      man_suffix = str(self.image) + ".manifest.json"
+      man_path = ch.storage.upload_cache // man_suffix
+      ch.VERBOSE("deleting manifest: %s" % man_path)
+      man_path.unlink()
+      for (_, tar_c) in self.layers:
+         ch.VERBOSE("deleting tarball: %s" % tar_c)
+         tar_c.unlink_()
 
    def prepare_upload(self, config, manifest, tars_c):
       """Store a list of gzipped layer tarball paths, config as a sequence of
@@ -144,16 +151,11 @@ class Image_Pusher:
          hash_uc = path_uc.file_hash()
          config["rootfs"]["diff_ids"].append("sha256:" + hash_uc)
          size_uc = path_uc.file_size()
-         # Temporary gzipped tar created to avoid edge case. If an image is
-         # pushed with the build cache disabled, then rebuilt with the build
-         # cache enabled, the original tar will still be present.
-         temp_path_c = path_uc.file_gzip(["-9", "--no-name"])
+         path_c = path_uc.file_gzip(["-9", "--no-name"])
          if (not isinstance(bu.cache, bu.Disabled_Cache)):
             tar_suffix = git_hash + ".tar.gz"
-         else:
-            tar_suffix = str(self.image) + ".tar.gz"
-         temp_path_c.rename_(ch.storage.upload_cache // tar_suffix)
-         path_c = ch.storage.upload_cache // tar_suffix
+            path_c.rename_(ch.storage.upload_cache // tar_suffix)
+            path_c = ch.storage.upload_cache // tar_suffix
          hash_c = path_c.file_hash()
          size_c = path_c.file_size()
          manifest["layers"].append({ "mediaType": rg.TYPE_LAYER,
@@ -227,7 +229,8 @@ class Image_Pusher:
    def push(self):
       self.prepare()
       self.upload()
-      # self.cleanup()
+      if (isinstance(bu.cache, bu.Disabled_Cache)):
+         self.cleanup()
 
    def upload(self):
       ch.INFO("starting upload")
