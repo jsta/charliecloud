@@ -30,7 +30,7 @@ def main(cli):
       ch.INFO("destination:     %s" % dst_ref)
    else:
       dst_ref = im.Reference(cli.source_ref)
-   up = Image_Pusher(image, dst_ref)
+   up = Image_Pusher(image, dst_ref, cli.cache_upload)
    up.push()
    ch.done_notify()
 
@@ -42,13 +42,15 @@ class Image_Pusher:
    # Note; We use functions to create the blank config and manifest to
    # avoid copy/deepcopy complexity from just copying a default dict.
 
-   __slots__ = ("config",    # sequence of bytes
-                "dst_ref",   # destination of upload
-                "image",     # Image object we are uploading
-                "layers",    # list of (digest, .tar.gz path), lowest first
-                "manifest")  # sequence of bytes
+   __slots__ = ("cache_upload",  # bool if upload cache is enabled
+                "config",        # sequence of bytes
+                "dst_ref",       # destination of upload
+                "image",         # Image object we are uploading
+                "layers",        # list of (digest, .tar.gz path), lowest first
+                "manifest")      # sequence of bytes
 
-   def __init__(self, image, dst_ref):
+   def __init__(self, image, dst_ref, cache_upload):
+      self.cache_upload = cache_upload
       self.config = None
       self.dst_ref = dst_ref
       self.image = image
@@ -136,6 +138,8 @@ class Image_Pusher:
       hash_c = path_c.file_hash()
       tars_c = [(hash_c, path_c)]
       self.prepare_upload(config, manifest, tars_c)
+      # Don't cleanup if existing files were used
+      self.cache_upload = True
 
    def prepare_new(self):
       """Prepare new config, manifest, and layer files for pushing."""
@@ -152,7 +156,8 @@ class Image_Pusher:
          config["rootfs"]["diff_ids"].append("sha256:" + hash_uc)
          size_uc = path_uc.file_size()
          path_c = path_uc.file_gzip(["-9", "--no-name"])
-         if (not isinstance(bu.cache, bu.Disabled_Cache)):
+         if (not isinstance(bu.cache, bu.Disabled_Cache)
+             and self.cache_upload):
             tar_suffix = git_hash + ".tar.gz"
             path_c.rename_(ch.storage.upload_cache // tar_suffix)
             path_c = ch.storage.upload_cache // tar_suffix
@@ -197,7 +202,8 @@ class Image_Pusher:
          if (i != non_empty_winner):
             hist[i]["empty_layer"] = True
       config["history"] = hist
-      if (not isinstance(bu.cache, bu.Disabled_Cache)):
+      if (not isinstance(bu.cache, bu.Disabled_Cache)
+          and self.cache_upload):
          conf_suffix = git_hash + ".config.json"
          man_suffix = git_hash + ".manifest.json"
       else:
@@ -229,7 +235,7 @@ class Image_Pusher:
    def push(self):
       self.prepare()
       self.upload()
-      if (isinstance(bu.cache, bu.Disabled_Cache)):
+      if (isinstance(bu.cache, bu.Disabled_Cache) or not self.cache_upload):
          self.cleanup()
 
    def upload(self):
