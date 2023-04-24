@@ -163,10 +163,10 @@ class Image_Pusher:
             path_c = ch.storage.upload_cache // tar_suffix
          hash_c = path_c.file_hash()
          size_c = path_c.file_size()
+         tars_c.append((hash_c, path_c))
          manifest["layers"].append({ "mediaType": rg.TYPE_LAYER,
                                      "size": size_c,
                                      "digest": "sha256:" + hash_c })
-         tars_c.append((hash_c, path_c))
       # Prepare metadata.
       ch.INFO("preparing metadata")
       self.image.metadata_load()

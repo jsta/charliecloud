@@ -1164,6 +1164,10 @@ Options:
     Use the unpacked image located at :code:`DIR` rather than an image in the
     storage directory named :code:`IMAGE_REF`.
 
+  :code:`--cache-upload`
+    Store the generated config, manifest, and tarball files that are generated
+    during the push process within Charliecloud's upload cache directory.
+
 Because Charliecloud is fully unprivileged, the owner and group of files in
 its images are not meaningful in the broader ecosystem. Thus, when pushed,
 everything in the image is flattened to user:group :code:`root:root`. Also,
@@ -1236,11 +1240,13 @@ in the remote registry, so we don’t upload it again.)
 
 Same, except the local image has already been pushed to the destination in its
 current form. Charliecloud is able to expedite the pushing process by using
-previously prepared config, metadata, and tarballs from the previous push.
+previously prepared config, metadata, and tarballs from the previous push. If
+not already present, the :code:`--cache-upload` flag would store the generated
+files in the upload cache.
 
 ::
 
-   $ ch-image push --image /var/tmp/image example.com:5000/foo/bar:latest
+   $ ch-image push --cache-upload --image /var/tmp/image example.com:5000/foo/bar:latest
    pushing image:   example.com:5000/foo/bar:latest
    image path:      /var/tmp/image
    starting upload
