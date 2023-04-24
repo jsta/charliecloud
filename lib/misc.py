@@ -183,3 +183,8 @@ def undelete(cli):
    if (git_hash is None):
       ch.FATAL("image not in cache")
    bu.cache.checkout(img, git_hash, None)
+
+def upload_cache(cli):
+   if (cli.reset):
+     ch.storage.upload_cache.rmtree()
+     ch.storage.upload_cache.mkdir()
