@@ -1,6 +1,5 @@
 import json
 import os.path
-from pathlib import Path
 
 import charliecloud as ch
 import build_cache as bu
