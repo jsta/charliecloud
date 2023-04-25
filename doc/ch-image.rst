@@ -20,9 +20,10 @@ Synopsis
    $ ch-image [...] import PATH IMAGE_REF
    $ ch-image [...] list [-l] [IMAGE_REF]
    $ ch-image [...] pull [...] IMAGE_REF [DEST_REF]
-   $ ch-image [...] push [--image DIR] IMAGE_REF [DEST_REF]
+   $ ch-image [...] push [...] IMAGE_REF [DEST_REF]
    $ ch-image [...] reset
    $ ch-image [...] undelete IMAGE_REF
+   $ ch-image [...] upload-cache [--reset]
    $ ch-image { --help | --version | --dependencies }
 
 
@@ -1144,7 +1145,7 @@ Synopsis
 
 ::
 
-   $ ch-image [...] push [--image DIR] IMAGE_REF [DEST_REF]
+   $ ch-image [...] push [...] IMAGE_REF [DEST_REF]
 
 See the FAQ for the gory details on specifying image references.
 
@@ -1279,6 +1280,22 @@ Delete all images and cache from ch-image builder storage.
 If :code:`IMAGE_REF` has been deleted but is in the build cache, recover it
 from the cache. Only available when the cache is enabled, and will not
 overwrite :code:`IMAGE_REF` if it exists.
+
+
+:code:`build-cache`
+===================
+
+::
+
+   $ ch-image [...] upload-cache [--reset]
+
+Print basic information about the upload cache.
+
+If the following option is given, do the corresponding operation before
+printing.
+
+  :code:`--reset`
+    Clear and re-initialize the upload cache.
 
 
 Environment variables
