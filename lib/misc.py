@@ -185,6 +185,22 @@ def undelete(cli):
    bu.cache.checkout(img, git_hash, None)
 
 def upload_cache(cli):
+   #TODO: Make upload-cache an independent file and call functions from there
+   cwd = ch.storage.upload_cache
    if (cli.reset):
-     ch.storage.upload_cache.rmtree()
-     ch.storage.upload_cache.mkdir()
+     ch.INFO("deleting upload cache")
+     cwd.rmtree()
+     ch.INFO("initializing empty upload cache")
+     cwd.mkdir()
+   states = set()
+   for file in cwd.listdir():
+      file_string = str(file)
+      git_hash = file_string.split('.')[0]
+      if git_hash not in states:
+         states.add(git_hash)
+   (file_ct, byte_ct) = cwd.du()
+   (file_ct, file_suffix) = ch.si_decimal(file_ct)
+   (byte_ct, byte_suffix) = ch.si_binary_bytes(byte_ct)
+   print("state IDs:      %5d" % len(states))
+   print("internal files: %5d %s" % (file_ct, file_suffix))
+   print("disk used:      %5d %s" % (byte_ct, byte_suffix))
