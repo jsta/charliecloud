@@ -118,7 +118,7 @@ class Image_Pusher:
          and layer files."""
       ch.DEBUG("checking for previously prepared files")
       (sid, git_hash) = bu.cache.find_image(self.image)
-      if ((sid, git_hash) is (None, None)):
+      if ((sid is None) or (git_hash is None)):
          return
       conf_suffix = git_hash + ".config.json"
       conf_path = ch.storage.upload_cache // conf_suffix
